@@ -1,0 +1,9 @@
+{
+  "name": "p2p-commenter-harness",
+  "version": "0.0.1",
+  "description": "Floating, anchored comments on any web page — injected by an agent, shared peer-to-peer.",
+  "license": "MIT",
+  "bin": { "commenter": "bin/commenter.js" },
+  "repository": { "type": "git", "url": "git+https://github.com/pA1nD/p2p-commenter-harness.git" },
+  "files": ["bin", "README.md", "LICENSE"]
+}
