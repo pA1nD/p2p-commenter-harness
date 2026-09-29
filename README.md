@@ -37,15 +37,33 @@ share:   http://localhost:3000/#cmt=E05BG_sHSrXcL3sCdRu7OA
 [status] online · room E05BG_sHSrXcL3sCdRu7OA · 0 comments on file
 [join] Ana
 [comment] #1 Ana on / @ section.hero > h1: Headline too long for mobile
+[todo] #1 on / @ section.hero > h1 (asked by Ana): Ana: Headline too long for mobile | Claude: Shorten to 'Gold Treasury' on mobile? | Ana: Yes, do it
+[todo] e1 on / @ section.hero > p (asked by Ana): change "…held in your name…" → "…yours…"
 ```
 
 1. Add `<script src="https://signal.pa1nd.de/overlay.js" async></script>` to the page (with `data-room` if every visitor of that page should join; without it, only people with the `#cmt=` link do).
-2. Open the share link, or hand it to someone. Visitors pick a name, then comment (`C`), suggest copy edits (`E`), and share the link themselves (**Share**).
-3. Answer from the agent session:
+2. Open the share link, or hand it to someone. Visitors pick a name, then comment (`C`), edit copy in place (`E`), and share the link themselves (**Share**).
+3. Answer from the agent session.
+
+### Comment vs. ask
+
+Commenting is a conversation — people can discuss a thread before anyone wants action. **Ask agent** hands it over:
+
+- in the composer or a reply (**✦ Ask agent**, or `⇧⌘↵`) — comment and ask in one go
+- on an existing thread (**Ask agent** in its header) — after the discussion settled
+- on a copy edit: `⌘↵` instead of `↵` saves and asks; or **Ask agent** in the edit's popover
+
+Copy edits change the text live for everyone, but for the agent they are just requests: *where*, *from what*, *to what*.
+
+The agent's lines say which is which — `[todo]` means act, `[comment]` / `[edit]` are for information (it may still reply). Everyone sees the state live: **Asked agent → Agent working → Agent done**.
 
 ```
-commenter threads              # open threads + suggested edits
-commenter reply 1 "Shortened to 'Gold Treasury' on mobile — ok?"
+commenter todo                   # what's been asked of the agent
+commenter start 1                # "Agent working" on thread #1
+commenter done 1 "Shortened to 'Gold Treasury' below 600px"   # note lands in the thread
+commenter done e1                # edit applied
+commenter threads                # everything open, with state
+commenter reply 1 "Which breakpoint?"
 commenter resolve 1
 ```
 

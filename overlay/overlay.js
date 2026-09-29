@@ -827,6 +827,36 @@
     .cmp-pop-btn.primary { background: var(--cm-fg); color: #fff; }
     .cmp-pop-btn.primary:hover { background: var(--cm-accent); }
     .cmp-pop-btn.primary:disabled { opacity: .4; cursor: not-allowed; }
+    .cmp-pop-btn.ask { display: inline-flex; align-items: center; gap: 5px; background: var(--cm-ask-bg); color: var(--cm-ask); border: 0.5px solid var(--cm-ask-line); }
+    .cmp-pop-btn.ask:hover { background: var(--cm-ask-bg-2); }
+    .cmp-pop-btn.ask:disabled { opacity: .4; cursor: not-allowed; }
+    .cmp-pop-btn.ask svg { width: 11px; height: 11px; }
+
+    /* Ask the agent — a thread/edit can be handed to the agent: asked → working → done */
+    .cm-layer { --cm-ask: oklch(0.45 0.18 305); --cm-ask-bg: oklch(0.6 0.18 305 / .08); --cm-ask-bg-2: oklch(0.6 0.18 305 / .16); --cm-ask-line: oklch(0.6 0.18 305 / .35); }
+    .ask-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 600; white-space: nowrap; }
+    .ask-chip svg { width: 10px; height: 10px; }
+    .ask-chip.ask-asked   { background: var(--cm-ask-bg-2); color: var(--cm-ask); }
+    .ask-chip.ask-working { background: oklch(0.72 0.17 80 / .18); color: oklch(0.45 0.13 70); }
+    .ask-chip.ask-done    { background: oklch(0.65 0.16 145 / .14); color: oklch(0.42 0.14 145); }
+    .ask-btn { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 6px; border: 0.5px solid var(--cm-ask-line); background: var(--cm-ask-bg); font: inherit; font-size: 11.5px; color: var(--cm-ask); cursor: pointer; }
+    .ask-btn:hover { background: var(--cm-ask-bg-2); }
+    .ask-btn svg { width: 11px; height: 11px; }
+    .ask-btn, .ask-chip { white-space: nowrap; }
+    .cb-pop-foot { flex-wrap: wrap; align-items: center; }
+    .ask-ctl { display: inline-flex; gap: 6px; align-items: center; }
+    .sp-thread-head .ask-ctl { margin-left: auto; }
+    .sp-thread-head .ask-ctl + .sp-thread-resolve { margin-left: 6px; }
+    .pin.ask-asked .pin-dot-inner, .pin.ask-working .pin-dot-inner {
+      box-shadow: 0 4px 12px color-mix(in oklch, var(--c) 50%, transparent), 0 0 0 2px #fff, 0 0 0 4px oklch(0.6 0.18 305);
+    }
+    .pin.ask-working .pin-dot-inner { animation: cm-ask-pulse 1.4s ease-in-out infinite; }
+    @keyframes cm-ask-pulse { 50% { box-shadow: 0 0 0 2px #fff, 0 0 0 7px oklch(0.6 0.18 305 / .35); } }
+    .sp-reply-btns { display: flex; flex-direction: column; gap: 6px; }
+    .sp-reply-ask { width: 30px; height: 30px; border-radius: 8px; border: 0.5px solid var(--cm-ask-line); background: var(--cm-ask-bg); color: var(--cm-ask); display: grid; place-items: center; cursor: pointer; }
+    .sp-reply-ask:hover { background: var(--cm-ask-bg-2); }
+    .sp-reply-ask:disabled { opacity: .4; cursor: not-allowed; }
+    .sp-reply-ask svg { width: 13px; height: 13px; }
     .cmp-pop-btn svg { width: 12px; height: 12px; }
     @keyframes cm-pop-in {
       from { opacity: 0; transform: translateY(4px) scale(.98); }
@@ -1394,6 +1424,7 @@
     crosshair: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5"/><path d="M8 1v3M8 12v3M1 8h3M12 8h3"/></svg>',
     caret:   '<svg viewBox="0 0 10 6" width="9" height="5" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     grip:    '<svg viewBox="0 0 6 12" fill="currentColor"><circle cx="1.4" cy="1.6" r="1.1"/><circle cx="4.6" cy="1.6" r="1.1"/><circle cx="1.4" cy="6"   r="1.1"/><circle cx="4.6" cy="6"   r="1.1"/><circle cx="1.4" cy="10.4" r="1.1"/><circle cx="4.6" cy="10.4" r="1.1"/></svg>',
+    agent:   '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M8 1.8l1.5 4.2 4.2 1.5-4.2 1.5L8 13.2 6.5 9 2.3 7.5 6.5 6z"/></svg>',
     share:   '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3M7 4.5l1.3-1.3a2.5 2.5 0 0 1 3.5 3.5L10.5 8M9 11.5l-1.3 1.3a2.5 2.5 0 0 1-3.5-3.5L5.5 8"/></svg>',
     refresh: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2v3h-3"/></svg>',
   };
@@ -1849,7 +1880,7 @@
     pill.appendChild(el('span', { class: 'ab-pill-divider' }));
 
     const openCount = comments.filter((c) => !c.event && c.status !== 'resolved').length;
-    const editCount = edits.length;
+    const editCount = edits.filter((e) => !e.event).length;
 
     const cBtn = el('button', { type: 'button', class: 'ab-pill-btn', title: 'Comments' });
     cBtn.innerHTML = ico('comment') + `<span>${openCount}</span>`;
@@ -2276,9 +2307,67 @@
     return { x: r.left + fx * r.width, y: r.top + fy * r.height };
   }
 
-  function buildPin(group, anchor, color, idx, allResolved, active) {
+  /* ──────────── ask the agent ──────────── */
+  // A comment thread or an edited element can be handed to the agent. The
+  // state lives in event rows (like resolved/reopened): asked → working → done.
+  const ASK_EVENTS = ['asked', 'working', 'done'];
+  const ASK_LABEL = { asked: 'Asked agent', working: 'Agent working', done: 'Agent done' };
+  function askOf(rows) {
+    let last = null;
+    for (const r of rows || []) if (ASK_EVENTS.includes(r.event) && (!last || r.created_at >= last.created_at)) last = r;
+    return last?.event || null;
+  }
+  // System event rows (resolve/reopen + ask states) → "Ana resolved this thread".
+  const EVENT_VERBS = { resolved: 'resolved', reopened: 'reopened', asked: 'asked the agent to act on', working: 'is working on', done: 'finished' };
+  const EVENT_ICONS = { resolved: 'check', reopened: 'undo' };
+  function eventRow(row, noun) {
+    const evt = el('div', { class: 'sp-event' });
+    evt.innerHTML = ico(EVENT_ICONS[row.event] || 'agent');
+    evt.appendChild(el('span', { class: 'sp-event-text' },
+      el('strong', {}, (row.author_name || 'anon').split(' ')[0]),
+      ` ${EVENT_VERBS[row.event] || row.event} this ${noun}`,
+    ));
+    evt.appendChild(el('span', { class: 'sp-event-time' }, timeAgo(row.created_at)));
+    return evt;
+  }
+  function askChip(ask) {
+    const chip = el('span', { class: 'ask-chip ask-' + ask });
+    chip.innerHTML = ico('agent');
+    chip.appendChild(document.createTextNode(ASK_LABEL[ask]));
+    return chip;
+  }
+  // Chip for the current state, plus an "Ask agent" button unless it's pending.
+  function askControl(ask, onAsk) {
+    const ctl = el('span', { class: 'ask-ctl' });
+    if (ask) ctl.appendChild(askChip(ask));
+    if (ask !== 'asked' && ask !== 'working') {
+      const b = el('button', { type: 'button', class: 'ask-btn', title: 'Hand this to the agent to act on' });
+      b.innerHTML = ico('agent') + (ask === 'done' ? ' Ask again' : ' Ask agent');
+      b.addEventListener('click', (e) => { e.stopPropagation(); b.disabled = true; onAsk(); });
+      ctl.appendChild(b);
+    }
+    return ctl;
+  }
+  function applyAskEvent(kind, event) {
+    if (!event) return;
+    if (kind === 'edit') applyEditThreadStatus({ anchor_json: event.anchor_json, edits: [], event });
+    else if (addCommentLocal(event)) { renderPins(); if (panelOpen) renderPanel(); }
+  }
+  async function askAgent(kind, anchor, pagePath) {
+    try {
+      const r = await api(`/__c/api/${kind === 'edit' ? 'edits' : 'comments'}/ask`, {
+        method: 'POST',
+        body: JSON.stringify({ page: pagePath || PAGE_PATH, anchor, clientId: state.clientId, name: state.name, email: state.email }),
+      });
+      const j = await r.json();
+      applyAskEvent(kind, j.event);
+      toast('Sent to the agent');
+    } catch (e) { toast('could not reach the agent'); }
+  }
+
+  function buildPin(group, anchor, color, idx, allResolved, active, ask) {
     const pin = el('button', { type: 'button',
-      class: 'pin pin-dot' + (active ? ' act' : '') + (allResolved ? ' resolved' : ''),
+      class: 'pin pin-dot' + (active ? ' act' : '') + (allResolved ? ' resolved' : '') + (ask ? ' ask-' + ask : ''),
     });
     pin.style.setProperty('--c', color);
     // Resolved → check glyph; otherwise the pin number.
@@ -2298,6 +2387,7 @@
   function renderPins() {
     const groups = commentsByAnchor();
     const groupKeys = [...groups.keys()].sort((a, b) => groups.get(a)[0].created_at - groups.get(b)[0].created_at);
+    const fullGroups = threadByAnchor();
     const seen = new Set();
     let idx = 0;
     for (const k of groupKeys) {
@@ -2313,10 +2403,11 @@
 
       let entry = pinEntries.get(k);
       // Rebuild only if the group composition / target / state changed.
-      const stateSig = idx + '|' + group.length + '|' + (active ? 1 : 0) + '|' + (allResolved ? 1 : 0);
+      const ask = askOf(fullGroups.get(k));
+      const stateSig = idx + '|' + group.length + '|' + (active ? 1 : 0) + '|' + (allResolved ? 1 : 0) + '|' + ask;
       if (!entry || entry.target !== target || entry.stateSig !== stateSig) {
         if (entry) entry.pin.remove();
-        const built = buildPin(group, anchor, color, idx, allResolved, active);
+        const built = buildPin(group, anchor, color, idx, allResolved, active, ask);
         layer.appendChild(built.pin);
         entry = { ...built, target, stateSig };
         pinEntries.set(k, entry);
@@ -2398,16 +2489,19 @@
     cancelBtn.addEventListener('click', () => closeComposer());
     const sendBtn = el('button', { type: 'button', class: 'cmp-pop-btn primary', disabled: true });
     sendBtn.innerHTML = 'Send ' + ico('arrowR');
-    sendBtn.addEventListener('click', submit);
-    ta.addEventListener('input', () => { sendBtn.disabled = !ta.value.trim(); });
+    sendBtn.addEventListener('click', () => submit(false));
+    const askBtn = el('button', { type: 'button', class: 'cmp-pop-btn ask', disabled: true, title: 'Comment and hand it to the agent to act on (⇧⌘↵)' });
+    askBtn.innerHTML = ico('agent') + ' Ask agent';
+    askBtn.addEventListener('click', () => submit(true));
+    ta.addEventListener('input', () => { sendBtn.disabled = askBtn.disabled = !ta.value.trim(); });
     ta.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') closeComposer();
-      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit();
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit(e.shiftKey);
     });
 
     pop.appendChild(el('div', { class: 'cmp-pop-foot' },
-      el('span', { class: 'cmp-pop-hint' }, '⌘ + ↵ to send'),
-      el('div', { class: 'cmp-pop-btns' }, cancelBtn, sendBtn)
+      el('span', { class: 'cmp-pop-hint' }, '⌘↵ send · ⇧⌘↵ ask agent'),
+      el('div', { class: 'cmp-pop-btns' }, cancelBtn, askBtn, sendBtn)
     ));
     layer.appendChild(pop);
     composerNode = { pop, ghostPin };
@@ -2425,21 +2519,22 @@
     });
     setTimeout(() => ta.focus(), 30);
 
-    async function submit() {
+    async function submit(ask) {
       const body = ta.value.trim();
       if (!body) return;
-      sendBtn.disabled = true;
+      sendBtn.disabled = askBtn.disabled = true;
       try {
         const r = await api('/__c/api/comments', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             slug: SLUG, token: TOKEN, page: PAGE_PATH,
-            anchor: composerCtx.anchor, comment: body,
+            anchor: composerCtx.anchor, comment: body, ask,
             clientId: state.clientId, name: state.name, email: state.email,
           }),
         });
         const j = await r.json();
+        if (j.event) addCommentLocal(j.event);
         if (j.comment) {
           // Dedupe: the WS comment_added broadcast can arrive before this
           // HTTP response. addCommentLocal is a no-op if already pushed.
@@ -2521,6 +2616,7 @@
       }
       if (e.key === 'Enter' && !e.shiftKey && targetEl.tagName !== 'TEXTAREA') {
         e.preventDefault();
+        if (editingCtx) editingCtx.ask = e.metaKey || e.ctrlKey;
         targetEl.blur();
       }
     };
@@ -2636,7 +2732,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           slug: SLUG, token: TOKEN, page: PAGE_PATH,
-          anchor, originalText: original, newText,
+          anchor, originalText: original, newText, ask: !!ctx.ask,
           clientId: state.clientId, name: state.name, email: state.email,
         }),
       });
@@ -2648,7 +2744,8 @@
         editsByAnchor.set(j.edit.anchor_json, j.edit);
         renderChangedBadges();
         renderAvatarBar();
-        toast('Edit saved');
+        applyAskEvent('edit', j.event);
+        toast(j.event ? 'Edit saved · sent to the agent' : 'Edit saved');
         celebrateFirstCommit();
       }
     } catch (e) { toast('edit failed: ' + e.message); }
@@ -2700,17 +2797,7 @@
 
     function renderEntry(ed) {
       // System event row (resolved / reopened) — compact line, no diff
-      if (ed.event) {
-        const verb = ed.event === 'resolved' ? 'resolved' : 'reopened';
-        const evt = el('div', { class: 'sp-event' });
-        evt.innerHTML = ico(ed.event === 'resolved' ? 'check' : 'undo');
-        evt.appendChild(el('span', { class: 'sp-event-text' },
-          el('strong', {}, (ed.author_name || 'anon').split(' ')[0]),
-          ` ${verb} this thread`,
-        ));
-        evt.appendChild(el('span', { class: 'sp-event-time' }, timeAgo(ed.created_at)));
-        return evt;
-      }
+      if (ed.event) return eventRow(ed, 'edit');
       const entry = el('div', { class: 'cb-pop-entry' });
       const entryColor = colorOf(ed.author_client_id);
       entry.appendChild(el('div', { class: 'cb-pop-head' },
@@ -2786,7 +2873,9 @@
         if (pop) { pop.remove(); pop = null; }
         startEdit(t);
       });
-      const foot = el('div', { class: 'cb-pop-foot' }, editBtn, resolveBtn);
+      const askCtl = askControl(askOf(edits.filter((x) => x.anchor_json === anchorJson)),
+        () => askAgent('edit', JSON.parse(anchorJson), e.page_path));
+      const foot = el('div', { class: 'cb-pop-foot' }, editBtn, askCtl, resolveBtn);
       pop.appendChild(title);
       pop.appendChild(list);
       pop.appendChild(foot);
@@ -3085,7 +3174,7 @@
       if (comments.filter((c) => !c.event).length === 0) aside.appendChild(renderEmpty('comments'));
       else aside.appendChild(renderCommentList());
     } else {
-      if (edits.length === 0) aside.appendChild(renderEmpty('edits'));
+      if (edits.filter((e) => !e.event).length === 0) aside.appendChild(renderEmpty('edits'));
       else aside.appendChild(renderEditList());
     }
 
@@ -3144,6 +3233,8 @@
       meta.appendChild(pageLabel);
       if (group.length > 1) meta.appendChild(el('span', { class: 'sp-item-replies' }, `${group.length - 1} repl${group.length - 1 === 1 ? 'y' : 'ies'}`));
       if (allResolved) meta.appendChild(el('span', { class: 'sp-item-resolved' }, 'Resolved'));
+      const ask = askOf(comments.filter((c) => c.page_path === head.page_path && c.anchor_json === head.anchor_json));
+      if (ask) meta.appendChild(askChip(ask));
       bodyDiv.appendChild(meta);
       item.appendChild(pin);
       item.appendChild(bodyDiv);
@@ -3240,6 +3331,8 @@
       resolveAct.innerHTML = ico(allResolved ? 'undo' : 'check') + (allResolved ? ' Reopen' : ' Resolve');
       resolveAct.addEventListener('click', () => toggleResolveEdit(anchor, latest.page_path, !allResolved));
       actions.appendChild(reveal);
+      actions.appendChild(askControl(askOf(edits.filter((x) => x.anchor_json === latest.anchor_json && x.page_path === latest.page_path)),
+        () => askAgent('edit', anchor, latest.page_path)));
       actions.appendChild(resolveAct);
       wrap.appendChild(actions);
       body.appendChild(wrap);
@@ -3272,22 +3365,14 @@
     const resolveBtn = el('button', { type: 'button', class: 'sp-thread-resolve' });
     resolveBtn.innerHTML = ico('check') + ` ${allResolved ? 'Reopen' : 'Resolve'}`;
     resolveBtn.addEventListener('click', () => toggleResolve(realGroup, !allResolved));
+    head.appendChild(askControl(askOf(fullGroup), () => askAgent('comment', anchor, pagePath)));
     head.appendChild(resolveBtn);
     body.appendChild(head);
 
     for (const m of fullGroup) {
       if (m.event) {
         // System event row — compact, italic, no body bubble.
-        const verb = m.event === 'resolved' ? 'resolved' : 'reopened';
-        const icon = m.event === 'resolved' ? 'check' : 'undo';
-        const evt = el('div', { class: 'sp-event' });
-        evt.innerHTML = ico(icon);
-        evt.appendChild(el('span', { class: 'sp-event-text' },
-          el('strong', {}, (m.author_name || 'anon').split(' ')[0]),
-          ` ${verb} this thread`,
-        ));
-        evt.appendChild(el('span', { class: 'sp-event-time' }, timeAgo(m.created_at)));
-        body.appendChild(evt);
+        body.appendChild(eventRow(m, 'thread'));
         continue;
       }
       const msg = el('div', { class: 'sp-msg' });
@@ -3312,28 +3397,32 @@
     reply.appendChild(ta);
     const send = el('button', { type: 'button', class: 'sp-reply-send', disabled: true });
     send.innerHTML = ico('arrowR');
-    ta.addEventListener('input', () => { send.disabled = !ta.value.trim(); });
-    ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submitReply(); });
-    send.addEventListener('click', submitReply);
-    reply.appendChild(send);
+    const sendAsk = el('button', { type: 'button', class: 'sp-reply-ask', disabled: true, title: 'Reply and ask the agent to act (⇧⌘↵)' });
+    sendAsk.innerHTML = ico('agent');
+    ta.addEventListener('input', () => { send.disabled = sendAsk.disabled = !ta.value.trim(); });
+    ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submitReply(e.shiftKey); });
+    send.addEventListener('click', () => submitReply(false));
+    sendAsk.addEventListener('click', () => submitReply(true));
+    reply.appendChild(el('div', { class: 'sp-reply-btns' }, send, sendAsk));
     body.appendChild(reply);
-    body.appendChild(el('div', { class: 'sp-reply-hint' }, '⌘ + ↵ to send'));
+    body.appendChild(el('div', { class: 'sp-reply-hint' }, '⌘↵ send · ⇧⌘↵ reply + ask agent'));
 
-    async function submitReply() {
+    async function submitReply(ask) {
       const text = ta.value.trim();
       if (!text) return;
-      send.disabled = true;
+      send.disabled = sendAsk.disabled = true;
       try {
         const r = await api('/__c/api/comments', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             slug: SLUG, token: TOKEN, page: PAGE_PATH,
-            anchor, comment: text,
+            anchor, comment: text, ask,
             clientId: state.clientId, name: state.name, email: state.email,
           }),
         });
         const j = await r.json();
+        if (j.event) addCommentLocal(j.event);
         if (j.comment) {
           // Celebrate REGARDLESS of whether the WS broadcast already added
           // it (addCommentLocal dedupes); otherwise the celebration could
@@ -3882,7 +3971,7 @@
 
     const eBtn = el('button', { type: 'button',
       class: 'cm-tool' + (mode === 'edit' ? ' act' : ''),
-      title: 'Edit text — hover any text element, click to edit',
+      title: 'Edit text — click any text to edit · ↵ save · ⌘↵ save and ask the agent',
     });
     eBtn.innerHTML = ico('edit') + `<span>Edit <kbd>E</kbd></span>`;
     eBtn.addEventListener('click', () => setMode('edit'));
