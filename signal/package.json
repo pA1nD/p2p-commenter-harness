@@ -1,0 +1,12 @@
+{
+  "name": "p2p-commenter-signal",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "werift": "^0.24.4",
+    "wrangler": "^4"
+  }
+}

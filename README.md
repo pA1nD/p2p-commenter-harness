@@ -4,7 +4,7 @@ Floating, anchored comments on any web page — injected by an agent, shared pee
 
 An agent session injects one script into the page it is working on. People open the page, pick a name, drop pins anywhere, and talk it through with the agent in threads. The agent persists the comments and implements the changes. Live cursors and presence show who is looking at what.
 
-**Status:** design / pre-alpha. Nothing to install yet.
+**Status:** pre-alpha. The [signalling server](signal/) is live at `signal.pa1nd.de`; overlay and agent CLI are next.
 
 ## Shape
 

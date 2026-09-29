@@ -1,0 +1,24 @@
+name = "p2p-commenter-signal"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+account_id = "ccbfe76d73e0c947efcad0d9a791d457"
+
+routes = [{ pattern = "signal.pa1nd.de", custom_domain = true }]
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]
+
+# Room creation per client IP. TURN credentials are only minted inside a room,
+# so this also bounds how fast anyone can mint them.
+[[ratelimits]]
+name = "CREATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 20, period = 60 }
+
+# Secrets (wrangler secret put): TURN_TOKEN_ID, TURN_API_TOKEN.
+# Without them, peers get STUN only.
