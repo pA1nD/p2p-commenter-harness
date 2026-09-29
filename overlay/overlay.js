@@ -1,9 +1,12 @@
 /* p2p-commenter-harness overlay — injected into a page by an agent.
  *
- * Joins a room on the signalling server, opens a WebRTC data channel to the
- * room's agent (the hub), and speaks the same frames + API the original
- * atelier commenter spoke over WebSocket/HTTP — now tunnelled through that
- * channel. The agent persists everything; nothing is stored server-side.
+ * Two ways to reach the agent (the hub), same frames + API either way — the
+ * ones the original atelier commenter spoke over WebSocket/HTTP:
+ *   local  — loaded from the hub on 127.0.0.1: a WebSocket straight to it.
+ *            The default; works with no internet at all.
+ *   shared — loaded from the signalling server: join the room from #cmt= and
+ *            open a WebRTC data channel to the agent.
+ * The agent persists everything; nothing is stored server-side.
  *
  * Room: window.__commenterConfig.room · <script data-room> · #cmt=<room> ·
  * sessionStorage (so navigation within the tab keeps the room).
@@ -26,17 +29,20 @@
   const CFG    = window.__commenterConfig || {};
   const ROOM_RE = /^[A-Za-z0-9_-]{22}$/;
   const hashRoom = (location.hash.match(/[#&]cmt=([A-Za-z0-9_-]{22})/) || [])[1];
+  const SRC = SCRIPT?.src ? new URL(SCRIPT.src) : null;
+  const LOCAL_HUB = CFG.hub || ((SRC?.hostname === '127.0.0.1' || SRC?.hostname === 'localhost') ? SRC.host : null);
   let ROOM = CFG.room || SCRIPT?.dataset.room || hashRoom;
   try { ROOM = ROOM || sessionStorage.getItem('__commenter_room'); } catch {}
-  if (!ROOM || !ROOM_RE.test(ROOM)) { window.__commenterMounted = false; return; }
-  try { sessionStorage.setItem('__commenter_room', ROOM); } catch {}
+  if (ROOM && !ROOM_RE.test(ROOM)) ROOM = null;
+  if (!LOCAL_HUB && !ROOM) { window.__commenterMounted = false; return; }
+  try { if (ROOM) sessionStorage.setItem('__commenter_room', ROOM); } catch {}
   const SIGNAL = String(CFG.signal || SCRIPT?.dataset.signal
-    || (SCRIPT?.src ? new URL(SCRIPT.src).origin : 'https://signal.pa1nd.de')).replace(/\/$/, '');
+    || (SRC && !LOCAL_HUB ? SRC.origin : 'https://signal.pa1nd.de')).replace(/\/$/, '');
   const SIGNAL_WS = SIGNAL.replace(/^http/, 'ws');
 
   // The original proxied pages under /p/<slug>-<token>/. Now the overlay runs
   // on the real page, so paths are the page's own and the "project" is the room.
-  const SLUG = ROOM, TOKEN = '';
+  const SLUG = ROOM || 'local', TOKEN = '';
   const PROXY_BASE = '';
   const PAGE_PATH  = location.pathname;
 
@@ -3998,7 +4004,7 @@
     toolsNode.appendChild(el('span', { class: 'cm-tool-sep' }));
 
     const sBtn = el('button', { type: 'button', class: 'cm-tool',
-      title: 'Copy a link that lets others join this review (while the agent is online)',
+      title: 'Let others join: turns sharing on and copies a link (needs internet)',
     });
     sBtn.innerHTML = ico('share') + `<span>Share</span>`;
     sBtn.addEventListener('click', shareLink);
@@ -4006,8 +4012,23 @@
   }
 
   async function shareLink() {
-    const url = location.origin + location.pathname + location.search + '#cmt=' + ROOM;
-    try { await navigator.clipboard.writeText(url); toast('Link copied — anyone with it can join while the agent is online'); }
+    let room = ROOM;
+    if (LOCAL_HUB) {
+      // Local mode has no room yet — ask the agent to start sharing (needs internet).
+      try {
+        const r = await api('/__c/api/share', { method: 'POST', body: JSON.stringify({ url: location.origin + location.pathname + location.search }) });
+        const j = await r.json();
+        if (!j?.room) throw new Error(j?.error || 'no room');
+        room = j.room;
+      } catch (e) { toast('Could not start sharing — it needs internet and the agent'); return; }
+    }
+    const url = location.origin + location.pathname + location.search + '#cmt=' + room;
+    const h = location.hostname;
+    const loopback = h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h.endsWith('.localhost');
+    const msg = loopback
+      ? 'Sharing on · link copied — this page is on localhost, so others need a public URL of it'
+      : 'Sharing on · link copied — anyone with it can join while the agent is online';
+    try { await navigator.clipboard.writeText(url); toast(msg); }
     catch { window.prompt('Copy this link:', url); }
   }
 
@@ -4254,7 +4275,22 @@
   let channelReadyResolve;
   let channelReady = new Promise((r) => { channelReadyResolve = r; });
 
+  // Local mode: a WebSocket straight to the hub that served this script.
+  function connectLocal() {
+    logConn({ kind: 'connect-attempt', retry: wsRetry, via: 'local' });
+    const sock = new WebSocket(`ws://${LOCAL_HUB}/ws`);
+    const ch = { get readyState() { return sock.readyState === 1 ? 'open' : 'closed'; }, send: (x) => sock.send(x) };
+    sock.onopen = () => { wsRetry = 0; channelOpened(ch); };
+    sock.onmessage = (ev) => channelMessage(ev.data);
+    sock.onclose = () => {
+      if (ws === ch) closePeer();
+      setOffline();
+      setTimeout(connectLocal, Math.min(8000, 500 * Math.pow(2, wsRetry++)));
+    };
+  }
+
   function connectWs() {
+    if (LOCAL_HUB) return connectLocal();
     logConn({ kind: 'connect-attempt', retry: wsRetry });
     const s = sig = new WebSocket(`${SIGNAL_WS}/rooms/${ROOM}?role=peer&name=${encodeURIComponent(state.name || '')}`);
     s.onmessage = async (ev) => {
@@ -4327,33 +4363,13 @@
     renderConn();
     const myPc = pc = new RTCPeerConnection({ iceServers: iceServers || [] });
     const dc = myPc.createDataChannel('commenter');
-    dc.onopen = () => {
-      if (pc !== myPc) return;
-      logConn({ kind: 'open' });
-      ws = dc;
-      connState = 'open';
-      renderConn();
-      sendWs({ t: 'hello', clientId: state.clientId });
-      sendIdentify();
-      startPresence();
-      channelReadyResolve();
-      loadSnapshot();
-    };
+    dc.onopen = () => { if (pc === myPc) channelOpened(dc); };
     dc.onclose = () => {
       if (pc !== myPc) return;
       closePeer();
       if (agentOnline) { connState = 'closed'; renderConn(); setTimeout(() => agentOnline && !pc && startPeer(), 1000); }
     };
-    dc.onmessage = (ev) => {
-      const f = unchunk(ev.data);
-      if (!f) return;
-      if (f.t === 'rpc_result') {
-        const w = rpcWaiters.get(f.id);
-        if (w) { rpcWaiters.delete(f.id); w.resolve(f); }
-        return;
-      }
-      handleFrame(f);
-    };
+    dc.onmessage = (ev) => channelMessage(ev.data);
     myPc.onconnectionstatechange = () => {
       if (pc !== myPc || myPc.connectionState !== 'failed') return;
       logConn({ kind: 'ice-failed' });
@@ -4378,6 +4394,29 @@
     signal({ sdp: myPc.localDescription });
     offerSent = true;
     for (const c of outbox) signal({ candidate: c });
+  }
+
+  // The channel to the agent is up (local socket or data channel).
+  function channelOpened(ch) {
+    logConn({ kind: 'open' });
+    ws = ch;
+    connState = 'open';
+    renderConn();
+    sendWs({ t: 'hello', clientId: state.clientId });
+    sendIdentify();
+    startPresence();
+    channelReadyResolve();
+    loadSnapshot();
+  }
+  function channelMessage(data) {
+    const f = unchunk(data);
+    if (!f) return;
+    if (f.t === 'rpc_result') {
+      const w = rpcWaiters.get(f.id);
+      if (w) { rpcWaiters.delete(f.id); w.resolve(f); }
+      return;
+    }
+    handleFrame(f);
   }
 
   // Data channel messages can be large (a snapshot); split anything over

@@ -26,24 +26,37 @@ No proxying, no page hosting, no persistence on the server. The room is online a
 ## Use it (agent side)
 
 ```
-npx p2p-commenter-harness up --url http://localhost:3000/ --name Claude
+npx p2p-commenter-harness up --name Claude
 ```
 
-It prints a script tag and a share link, then one line per event:
-
 ```
-script:  <script src="https://signal.pa1nd.de/overlay.js" data-room="E05BG_sHSrXcL3sCdRu7OA" async></script>
-share:   http://localhost:3000/#cmt=E05BG_sHSrXcL3sCdRu7OA
-[status] online · room E05BG_sHSrXcL3sCdRu7OA · 0 comments on file
+script:  <script src="http://127.0.0.1:51850/overlay.js" onerror="…falls back to https://signal.pa1nd.de/overlay.js…" async></script>
+mode:    local — this machine only, no internet needed · `commenter share` or the page's Share button lets others in
+[status] ready on 127.0.0.1:51850 · 0 comments on file
 [join] Ana
 [comment] #1 Ana on / @ section.hero > h1: Headline too long for mobile
 [todo] #1 on / @ section.hero > h1 (asked by Ana): Ana: Headline too long for mobile | Claude: Shorten to 'Gold Treasury' on mobile? | Ana: Yes, do it
 [todo] e1 on / @ section.hero > p (asked by Ana): change "…held in your name…" → "…yours…"
 ```
 
-1. Add `<script src="https://signal.pa1nd.de/overlay.js" async></script>` to the page (with `data-room` if every visitor of that page should join; without it, only people with the `#cmt=` link do).
-2. Open the share link, or hand it to someone. Visitors pick a name, then comment (`C`), edit copy in place (`E`), and share the link themselves (**Share**).
-3. Answer from the agent session.
+1. Put the printed `<script>` tag in the page. The port is fixed per project (`.commenter/local.json`), so the tag keeps working.
+2. Open the page. Pick a name, then comment (`C`) or edit copy in place (`E`).
+3. Answer from the agent session (commands below).
+
+### Local first
+
+By default nothing leaves the machine: the page talks to `commenter up` over `127.0.0.1`, and every comment lands in `.commenter/comments.jsonl` as you type it. Works on a plane — the agent picks up the `[todo]`s (`commenter todo`) whenever it can think again.
+
+Only pages on this machine can connect (`localhost`, `127.0.0.1`, `*.localhost`, `file://`); allow others with `--allow-origin https://preview.example.com`.
+
+### Sharing
+
+Sharing is off until someone turns it on:
+
+- the agent: `commenter share --url https://preview.example.com/` (or `up --shared`); `commenter unshare` turns it off
+- you, in the page: **Share** — switches sharing on and copies `page-url#cmt=<room>`
+
+Then the hub also joins a room on the signalling server, and visitors elsewhere connect over WebRTC — the same tag loads the hosted overlay for them. The page itself has to be reachable for them (a public preview, not `localhost`). The room is online while `commenter up` runs; when it stops, visitors see **agent offline**.
 
 ### Comment vs. ask
 
@@ -67,14 +80,12 @@ commenter reply 1 "Which breakpoint?"
 commenter resolve 1
 ```
 
-Everything lands in `.commenter/comments.jsonl` (append-only; keep it in git if you like). `room.json` holds the owner key and is git-ignored. Run `up` in the background and the agent wakes on each printed line.
-
-The room is online while `commenter up` runs. When it stops, visitors see **agent offline**.
+Everything lands in `.commenter/comments.jsonl` (append-only; keep it in git if you like). `room.json` holds the sharing owner key and is git-ignored. Run `up` in the background and the agent wakes on each printed line.
 
 ## Layout
 
 - `overlay/overlay.js` — the injected script (served from the signalling Worker as `/overlay.js`)
-- `lib/hub.js` — the agent end: WebRTC hub, presence relay, the comment API
+- `lib/hub.js` — the agent end: local WebSocket + (when shared) WebRTC hub, presence relay, the comment API
 - `lib/store.js` — the JSONL log
 - `bin/commenter.js` — the CLI
 - `signal/` — the signalling Worker ([protocol](signal/README.md))
