@@ -22,3 +22,7 @@ simple = { limit = 20, period = 60 }
 
 # Secrets (wrangler secret put): TURN_TOKEN_ID, TURN_API_TOKEN.
 # Without them, peers get STUN only.
+
+# The overlay is served from here too: https://signal.pa1nd.de/overlay.js
+[assets]
+directory = "../overlay"
