@@ -1,6 +1,6 @@
 {
   "name": "p2p-commenter-harness",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Floating, anchored comments on any web page \u2014 injected by an agent, shared peer-to-peer.",
   "license": "MIT",
   "bin": {
@@ -24,5 +24,8 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
   }
 }

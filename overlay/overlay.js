@@ -12,8 +12,7 @@
  * sessionStorage (so navigation within the tab keeps the room).
  * Signal: window.__commenterConfig.signal · <script data-signal> · script origin.
  *
- * Shadow-DOM-isolated, vanilla JS. Implements the Claude Design handover
- * pack (default variants only): center-pill avatar bar, numbered-dot pins,
+ * Shadow-DOM-isolated, vanilla JS: center-pill avatar bar, numbered-dot pins,
  * right-slide side panel, pill changed badge. Light theme.
  *
  * Visual register, motion timings, and tokens come from the design's
@@ -40,11 +39,10 @@
     || (SRC && !LOCAL_HUB ? SRC.origin : 'https://signal.pa1nd.de')).replace(/\/$/, '');
   const SIGNAL_WS = SIGNAL.replace(/^http/, 'ws');
 
-  // The original proxied pages under /p/<slug>-<token>/. Now the overlay runs
-  // on the real page, so paths are the page's own and the "project" is the room.
-  const SLUG = ROOM || 'local', TOKEN = '';
-  const PROXY_BASE = '';
+  // The overlay runs on the real page, so paths are the page's own.
   const PAGE_PATH  = location.pathname;
+  // Page paths come from other peers — only ever navigate within this origin.
+  function samePath(p) { return typeof p === 'string' && /^\/(?![\/\\])/.test(p) ? p : '/'; }
 
   /* ──────────── identity ──────────── */
 
@@ -79,6 +77,10 @@
   if (!state.color) state.color = deriveColor(state.clientId);
   function persist() { try { localStorage.setItem(STORAGE, JSON.stringify(state)); } catch {} }
   persist();
+
+  // Colours arrive from other peers; only accept plain CSS colour literals.
+  const COLOR_RE = /^(#[0-9a-f]{3,8}|(oklch|oklab|hsl|hsla|rgb|rgba)\([0-9.%\s,\/-]+\))$/i;
+  function safeColor(c) { return typeof c === 'string' && COLOR_RE.test(c) ? c : COLORS[0]; }
 
   function initialsOf(name) {
     if (!name) return '?';
@@ -546,21 +548,6 @@
     }
     .ab-pill-btn:hover { background: var(--cm-line); color: var(--cm-fg); }
     .ab-pill-btn svg { width: 13px; height: 13px; }
-    .ab-update {
-      display: flex; align-items: center; gap: 6px;
-      margin-left: 4px; padding: 5px 10px;
-      background: oklch(0.78 0.18 50); color: #1d2021;
-      border: 0; border-radius: 999px;
-      font: inherit; font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em;
-      cursor: pointer;
-      animation: cm-pulse-update 1.6s ease-in-out infinite;
-    }
-    .ab-update:hover { filter: brightness(1.08); }
-    .ab-update svg { width: 12px; height: 12px; }
-    @keyframes cm-pulse-update {
-      0%, 100% { box-shadow: 0 0 0 0 oklch(0.78 0.18 50 / 0.5); }
-      50%      { box-shadow: 0 0 0 6px oklch(0.78 0.18 50 / 0); }
-    }
     .ab-pill-cta {
       padding: 5px 12px;
       background: var(--cm-fg); color: #fff;
@@ -1593,7 +1580,7 @@
       const scrim = el('div', { class: 'id-scrim' });
       const card = el('div', { class: 'id-card' });
 
-      const mark = el('span', { class: 'id-mark', title: 'Atelier' });
+      const mark = el('span', { class: 'id-mark', title: 'p2p-commenter-harness' });
       mark.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">'
         + '<rect x="3"  y="3"  width="8" height="8" rx="1" stroke="#d79921" stroke-width="1.5"/>'
         + '<rect x="13" y="3"  width="8" height="8" rx="1" stroke="#689d6a" stroke-width="1.5"/>'
@@ -1655,7 +1642,7 @@
         return i >= 0 ? i : 0;
       })();
 
-      const mark = el('span', { class: 'id-mark', title: 'Atelier' });
+      const mark = el('span', { class: 'id-mark', title: 'p2p-commenter-harness' });
       mark.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">'
         + '<rect x="3"  y="3"  width="8" height="8" rx="1" stroke="#d79921" stroke-width="1.5"/>'
         + '<rect x="13" y="3"  width="8" height="8" rx="1" stroke="#689d6a" stroke-width="1.5"/>'
@@ -1900,15 +1887,6 @@
     // Share has moved into the avatar dropdown ("Copy invite link") — no
     // need for a redundant CTA on the bar.
 
-    // OUTDATED chip — only when an update has been pending long enough that
-    // we couldn't sneak in an idle reload. Click to force-reload now.
-    if (typeof shouldShowOutdated === 'function' && shouldShowOutdated()) {
-      const upBtn = el('button', { type: 'button', class: 'ab-update', title: 'New version available — click to reload' });
-      upBtn.innerHTML = ico('refresh') + '<span>OUTDATED · UPDATE NOW</span>';
-      upBtn.addEventListener('click', () => performReload());
-      pill.appendChild(upBtn);
-    }
-
     avatarBar.appendChild(pill);
     applyBarPosition();
   }
@@ -2013,15 +1991,6 @@
     });
   }
 
-  async function shareLink() {
-    const url = location.href;
-    try {
-      await navigator.clipboard.writeText(url);
-      toast('Link copied');
-    } catch {
-      toast(url);
-    }
-  }
 
   /* ──────────── target selection (host-DOM) ──────────── */
 
@@ -2534,7 +2503,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            slug: SLUG, token: TOKEN, page: PAGE_PATH,
+            page: PAGE_PATH,
             anchor: composerCtx.anchor, comment: body, ask,
             clientId: state.clientId, name: state.name, email: state.email,
           }),
@@ -2737,7 +2706,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          slug: SLUG, token: TOKEN, page: PAGE_PATH,
+          page: PAGE_PATH,
           anchor, originalText: original, newText, ask: !!ctx.ask,
           clientId: state.clientId, name: state.name, email: state.email,
         }),
@@ -2917,7 +2886,7 @@
 
       // Track this fetch — discard if the pop closed before it returned.
       const myPop = pop;
-      api(`/__c/api/edits/history?slug=${SLUG}&token=${TOKEN}&page=${encodeURIComponent(PAGE_PATH)}&anchor=${encodeURIComponent(anchorJson)}`)
+      api(`/__c/api/edits/history?page=${encodeURIComponent(PAGE_PATH)}&anchor=${encodeURIComponent(anchorJson)}`)
         .then((r) => r.json())
         .then((j) => {
           if (myPop !== pop) return;
@@ -3051,7 +3020,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          slug: SLUG, token: TOKEN, page: pagePath || PAGE_PATH, anchor,
+          page: pagePath || PAGE_PATH, anchor,
           clientId: state.clientId, name: state.name, email: state.email,
         }),
       });
@@ -3117,7 +3086,7 @@
     const target = comments.find((c) => c.id === commentId);
     if (target && target.page_path && target.page_path !== PAGE_PATH) {
       try { sessionStorage.setItem('__commenter_open_thread', JSON.stringify({ commentId, ts: Date.now() })); } catch {}
-      location.href = PROXY_BASE + target.page_path;
+      location.href = samePath(target.page_path);
       return;
     }
     activePinId = commentId;
@@ -3319,7 +3288,7 @@
               anchor_json: latest.anchor_json, ts: Date.now(),
             }));
           } catch {}
-          location.href = PROXY_BASE + latest.page_path;
+          location.href = samePath(latest.page_path);
           return;
         }
         const t = resolveAnchor(anchor);
@@ -3387,11 +3356,13 @@
         el('span', { class: 'sp-item-name' }, m.author_name || 'anon'),
         el('span', { class: 'sp-item-time' }, timeAgo(m.created_at))
       );
-      // Anyone in the room can delete any comment.
-      const delBtn = el('button', { type: 'button', class: 'sp-msg-del', title: 'Delete' });
-      delBtn.innerHTML = ico('x');
-      delBtn.addEventListener('click', () => deleteComment(m));
-      head.appendChild(delBtn);
+      // You can delete your own comments (the agent enforces the same rule).
+      if (m.author_client_id === state.clientId) {
+        const delBtn = el('button', { type: 'button', class: 'sp-msg-del', title: 'Delete' });
+        delBtn.innerHTML = ico('x');
+        delBtn.addEventListener('click', () => deleteComment(m));
+        head.appendChild(delBtn);
+      }
       msg.appendChild(head);
       msg.appendChild(el('div', { class: 'sp-msg-body' }, m.body));
       body.appendChild(msg);
@@ -3422,7 +3393,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            slug: SLUG, token: TOKEN, page: PAGE_PATH,
+            page: PAGE_PATH,
             anchor, comment: text, ask,
             clientId: state.clientId, name: state.name, email: state.email,
           }),
@@ -3453,7 +3424,7 @@
       const r = await api('/__c/api/comments/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: SLUG, token: TOKEN, commentId: comment.id }),
+        body: JSON.stringify({ commentId: comment.id }),
       });
       const j = await r.json();
       if (j.commentId) applyCommentDeleted({ commentId: j.commentId, anchor_json: comment.anchor_json });
@@ -3488,7 +3459,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          slug: SLUG, token: TOKEN, page: PAGE_PATH, anchor,
+          page: PAGE_PATH, anchor,
           clientId: state.clientId, name: state.name, email: state.email,
         }),
       });
@@ -3536,7 +3507,7 @@
     if (user.page && user.page !== PAGE_PATH) {
       // store intent before nav (we lose state)
       try { sessionStorage.setItem('__commenter_follow', JSON.stringify({ clientId: user.clientId, ts: Date.now() })); } catch {}
-      location.href = PROXY_BASE + user.page;
+      location.href = samePath(user.page);
       return;
     }
     // Glide to their viewport via computeFollowTarget so the same logic
@@ -3929,7 +3900,9 @@
       if (!wrap) {
         wrap = el('div', { class: 'lc-wrap' });
         const svg = document.createElement('div');
-        svg.innerHTML = `<svg width="18" height="22" viewBox="0 0 18 22" fill="none"><path class="lc-arrow" d="M2 2L2 18L7 14L10 20L13 18L10 12L16 12L2 2Z" fill="${u.color}" stroke="white" stroke-width="1.2"/></svg>`;
+        svg.innerHTML = '<svg width="18" height="22" viewBox="0 0 18 22" fill="none"><path class="lc-arrow" d="M2 2L2 18L7 14L10 20L13 18L10 12L16 12L2 2Z" stroke="white" stroke-width="1.2"/></svg>';
+        // Colour comes from other peers — set it as an attribute, never as markup.
+        svg.querySelector('path').setAttribute('fill', safeColor(u.color));
         wrap.appendChild(svg.firstElementChild);
         wrap.appendChild(el('div', { class: 'lc-label' }));
         cursorLayer.appendChild(wrap);
@@ -4430,9 +4403,12 @@
     const n = Math.ceil(s.length / CHUNK);
     for (let i = 0; i < n; i++) ws.send(JSON.stringify({ t: 'chunk', id, i, n, d: s.slice(i * CHUNK, (i + 1) * CHUNK) }));
   }
+  const MAX_CHUNKS = 1000;
   function unchunk(raw) {
     let f; try { f = JSON.parse(raw); } catch { return null; }
+    if (!f || typeof f !== 'object') return null;
     if (f.t !== 'chunk') return f;
+    if (!Number.isInteger(f.n) || f.n < 1 || f.n > MAX_CHUNKS || !Number.isInteger(f.i) || f.i < 0 || f.i >= f.n || typeof f.d !== 'string') return null;
     const parts = chunkBuf.get(f.id) || [];
     parts[f.i] = f.d;
     chunkBuf.set(f.id, parts);
@@ -4463,7 +4439,6 @@
   function handleFrame(f) {
     if (f.t === 'welcome') {
       roster = f.roster || [];
-      if (typeof f.overlayVersion === 'number') noteServerVersion(f.overlayVersion);
       // Continue resuming follow if we navigated for it
       try {
         const stored = JSON.parse(sessionStorage.getItem('__commenter_follow') || 'null');
@@ -4476,8 +4451,6 @@
       renderAvatarBar();
       renderEditingByOther();
       renderLiveCursors();
-    } else if (f.t === 'overlay-version') {
-      if (typeof f.version === 'number') noteServerVersion(f.version);
     } else if (f.t === 'roster') {
       const next = f.roster || [];
       const goneIds = roster
@@ -4521,7 +4494,7 @@
         // resolve. smoothScrollTo lerps each frame to avoid step-jumps.
         if (followCtx && followCtx.user.clientId === f.clientId) {
           if (f.page && f.page !== PAGE_PATH) {
-            location.href = PROXY_BASE + f.page;
+            location.href = samePath(f.page);
             return;
           }
           // Anchor-first, velocity-extrapolation second, absolute-scroll
@@ -4642,90 +4615,10 @@
     }
   });
 
-  /* ──────────── overlay self-update ──────────── */
-  // The edge stamps `globalThis.__cmOverlayVersion = <mtime>` at the head of
-  // every overlay.js response and broadcasts the same number on the WS
-  // (welcome + an overlay-version push when the file changes). When the
-  // server's number > ours, we have an outdated overlay loaded — auto-reload
-  // the next time the user is genuinely idle. If they stay busy too long
-  // (1.5min), surface an OUTDATED · UPDATE NOW chip in the avatar bar.
-  const LOADED_OVERLAY_VERSION = (typeof globalThis.__cmOverlayVersion === 'number')
-    ? globalThis.__cmOverlayVersion : 0;
-  let pendingUpdateSince = 0;     // ms timestamp when we first saw a newer version
-  let lastActivityAt = Date.now();
-  const ACTIVITY_IDLE_MS  = 4_000;
-  const ACTIVITY_OUTDATED_MS = 90_000;
-  const RESTORE_MAX_AGE_MS = 5 * 60_000;
-  function markActivity() { lastActivityAt = Date.now(); }
-  ['mousemove','mousedown','keydown','wheel','touchstart','touchmove'].forEach((ev) => {
-    window.addEventListener(ev, markActivity, { passive: true, capture: true });
-  });
-  function noteServerVersion(srv) {
-    if (!srv) return;
-    if (LOADED_OVERLAY_VERSION && srv > LOADED_OVERLAY_VERSION && !pendingUpdateSince) {
-      pendingUpdateSince = Date.now();
-      renderAvatarBar(); // chip will check pendingUpdateSince and render the right state
-    }
-  }
-  function isUserBusy() {
-    if (composerCtx || composerNode) return true;
-    if (editingCtx) return true;
-    if (followCtx) return true;
-    if (Date.now() - lastActivityAt < ACTIVITY_IDLE_MS) return true;
-    return false;
-  }
-  function snapshotForReload() {
-    const out = {
-      v: LOADED_OVERLAY_VERSION,
-      page: PAGE_PATH,
-      scrollX: window.scrollX,
-      scrollY: window.scrollY,
-      ts: Date.now(),
-    };
-    return out;
-  }
-  function performReload() {
-    try {
-      sessionStorage.setItem('__commenter_reload', JSON.stringify(snapshotForReload()));
-    } catch {}
-    location.reload();
-  }
-  // Outdated chip in the avatar bar — wired into renderAvatarBar via a
-  // post-render callback. Polls once a second so it appears on schedule
-  // without piggy-backing on roster changes.
-  function shouldShowOutdated() {
-    return pendingUpdateSince && (Date.now() - pendingUpdateSince) >= ACTIVITY_OUTDATED_MS;
-  }
-  setInterval(() => {
-    if (!pendingUpdateSince) return;
-    if (!isUserBusy()) {
-      performReload();
-      return;
-    }
-    // Re-render avatar bar near the OUTDATED threshold so the chip flips on.
-    if (shouldShowOutdated()) renderAvatarBar();
-  }, 1000);
-
-  // Restore scroll on page load if we just reloaded ourselves.
-  try {
-    const raw = sessionStorage.getItem('__commenter_reload');
-    if (raw) {
-      const r = JSON.parse(raw);
-      sessionStorage.removeItem('__commenter_reload');
-      if (r && r.page === PAGE_PATH && (Date.now() - r.ts) < RESTORE_MAX_AGE_MS) {
-        // Defer until after layout has settled, otherwise a 0,0 reflow
-        // wins. requestAnimationFrame after a short timeout works well.
-        setTimeout(() => {
-          window.scrollTo(r.scrollX || 0, r.scrollY || 0);
-        }, 50);
-      }
-    }
-  } catch {}
-
   /* ──────────── snapshot replay ──────────── */
   async function loadSnapshot() {
     try {
-      const r = await api(`/__c/api/snapshot?slug=${SLUG}&token=${TOKEN}`);
+      const r = await api('/__c/api/snapshot');
       const j = await r.json();
       comments = j.comments || [];
       edits    = j.edits    || [];

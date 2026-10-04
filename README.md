@@ -47,7 +47,7 @@ mode:    local — this machine only, no internet needed · `commenter share` or
 
 By default nothing leaves the machine: the page talks to `commenter up` over `127.0.0.1`, and every comment lands in `.commenter/comments.jsonl` as you type it. Works on a plane — the agent picks up the `[todo]`s (`commenter todo`) whenever it can think again.
 
-Only pages on this machine can connect (`localhost`, `127.0.0.1`, `*.localhost`, `file://`); allow others with `--allow-origin https://preview.example.com`.
+Only pages served from this machine can connect (`localhost`, `127.0.0.1`, `*.localhost`); allow others with `--allow-origin https://preview.example.com`. `file://` pages can't connect — serve them (`npx serve`, `python3 -m http.server`).
 
 ### Sharing
 
@@ -81,6 +81,25 @@ commenter resolve 1
 ```
 
 Everything lands in `.commenter/comments.jsonl` (append-only; keep it in git if you like). `room.json` holds the sharing owner key and is git-ignored. Run `up` in the background and the agent wakes on each printed line.
+
+## Security & privacy
+
+- **Who can reach the local hub.** It listens on `127.0.0.1` only. Its WebSocket accepts pages whose `Origin` is a loopback host (plus any `--allow-origin`); `Origin: null` and missing origins are refused, so a website open in another tab can't read or write your comments. The CLI's control routes need a per-run token from `.commenter/hub.json` (mode `0600`).
+- **What visitors can do.** Comment, reply, suggest edits, ask the agent, resolve/reopen threads, and delete **their own** comments. The agent's identity (`agent`) can't be claimed by a visitor. Everything a visitor sends is treated as untrusted: colours and page paths are validated, and messages are size-limited.
+- **What's stored, where.** Only in `.commenter/comments.jsonl` on the agent's machine: comment text, the anchor, and the name (and email, if given) people typed in. Nothing is stored on a server.
+- **When sharing is on.** The signalling server sees room ids and the WebRTC handshake (SDP/ICE) — never comments, names or cursors, which travel over the encrypted peer connection. If a direct connection fails, Cloudflare's TURN relays the encrypted traffic without being able to read it. The share link is the only key to the room; anyone holding it can join while sharing is on.
+
+### Self-hosting the signalling server
+
+`https://signal.pa1nd.de` is the default and is run by the maintainer. To use your own, deploy [`signal/`](signal/) to your Cloudflare account and pass `--signal https://your-signal.example` to `commenter up` (the script tag it prints then falls back to your server's `/overlay.js` too).
+
+## Tests
+
+```
+npm test                                         # hub, store and CLI regression tests (local only)
+node signal/test/signal.mjs https://your-signal  # signalling protocol, against a deployed Worker
+node signal/test/turn.mjs https://your-signal relay
+```
 
 ## Layout
 

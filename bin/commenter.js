@@ -35,15 +35,24 @@ const DEFAULT_SIGNAL = "https://signal.pa1nd.de";
 const FIRST_PORT = 51850;
 const OVERLAY = new URL("../overlay/overlay.js", import.meta.url);
 
+// Only known flags are flags, so a reply like "--no-verify was needed" stays text.
+// A bare "--" ends the options: everything after it is positional.
+const VALUE_FLAGS = new Set(["dir", "name", "url", "signal", "allow-origin"]);
+const BOOL_FLAGS = new Set(["shared", "json", "all"]);
 const argv = process.argv.slice(2);
 const cmd = argv[0] && !argv[0].startsWith("--") ? argv.shift() : "help";
 const flags = {};
 const rest = [];
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i].startsWith("--")) {
-    const k = argv[i].slice(2);
-    flags[k] = argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[++i] : true;
-  } else rest.push(argv[i]);
+  const a = argv[i];
+  if (a === "--") {
+    rest.push(...argv.slice(i + 1));
+    break;
+  }
+  const k = a.startsWith("--") ? a.slice(2) : null;
+  if (k && VALUE_FLAGS.has(k) && i + 1 < argv.length) flags[k] = argv[++i];
+  else if (k && BOOL_FLAGS.has(k)) flags[k] = true;
+  else rest.push(a);
 }
 
 const DIR = path.resolve(flags.dir || ".commenter");
@@ -80,7 +89,9 @@ const shareUrl = (room, url) => (url ? `${url.replace(/#.*$/, "")}#cmt=${room}` 
 
 // Loopback pages only, unless the agent allows more with --allow-origin.
 function originAllowed(origin) {
-  if (!origin || origin === "null") return true; // file:// pages
+  // No "null" (sandboxed iframes, file://) and no missing Origin: browsers
+  // always send a real one from a page, and "null" is what any site can fake.
+  if (!origin || origin === "null") return false;
   const extra = String(flags["allow-origin"] || "").split(",").filter(Boolean);
   if (extra.includes(origin)) return true;
   try {
@@ -217,14 +228,18 @@ async function up() {
 
   const onEvent = (e) => {
     // The agent's own actions come from its own commands — don't echo them back.
-    if (e.comment?.author_client_id === "agent" || e.by === agentName) return;
+    if (e.comment?.author_client_id === "agent" || e.byAgent) return;
     print(flags.json ? JSON.stringify(e) : formatEvent(e, store));
   };
 
   let sharing = null;
+  let creating = null; // one room creation at a time, however many Share clicks
   async function share(by, pageUrl) {
     let room = readJson(FILES.room);
-    if (!room || room.signal !== signal) room = await createRoom(signal);
+    if (!room || room.signal !== signal) {
+      creating ||= createRoom(signal).finally(() => (creating = null));
+      room = await creating;
+    }
     if (sharing !== room.room) {
       hub.startSharing({ signal, room: room.room, ownerKey: room.ownerKey });
       sharing = room.room;
@@ -248,7 +263,14 @@ async function up() {
       fs.rmSync(FILES.room, { force: true });
       sharing = null;
       print("[status] shared room expired — making a new one; old share links no longer work");
-      await share();
+      for (let attempt = 0; sharing === null; attempt++) {
+        try {
+          await share();
+        } catch (e) {
+          print(`[status] could not create a new room (${e.message}) — retrying`);
+          await new Promise((r) => setTimeout(r, Math.min(60000, 2000 * 2 ** attempt)));
+        }
+      }
     }
   };
 
@@ -289,24 +311,30 @@ async function up() {
   });
 
   // A stable port per project, so the script tag in the page keeps working.
-  let port = readJson(FILES.local)?.port;
-  try {
-    if (port) await listen(server, port);
-    else {
-      for (port = FIRST_PORT; ; port++) {
-        try {
-          await listen(server, port);
-          break;
-        } catch (e) {
-          if (e.code !== "EADDRINUSE" || port > FIRST_PORT + 100) throw e;
-        }
+  const running = readJson(FILES.hub);
+  if (running && alive(running.pid)) throw new Error(`\`commenter up\` is already running for this project (pid ${running.pid})`);
+  const saved = readJson(FILES.local)?.port;
+  let port = saved;
+  const scan = async (from) => {
+    for (let p = from; p < from + 100; p++) {
+      try {
+        return await listen(server, p);
+      } catch (e) {
+        if (e.code !== "EADDRINUSE") throw e;
       }
-      fs.writeFileSync(FILES.local, JSON.stringify({ port }) + "\n");
     }
-  } catch (e) {
-    if (e.code === "EADDRINUSE") throw new Error(`port ${port} is taken — is \`commenter up\` already running for this project?`);
-    throw e;
-  }
+    throw new Error(`no free port in ${from}–${from + 99}`);
+  };
+  if (saved) {
+    try {
+      await listen(server, saved);
+    } catch (e) {
+      if (e.code !== "EADDRINUSE") throw e;
+      port = await scan(FIRST_PORT);
+      print(`[status] port ${saved} is taken by something else — moved to ${port}; update the script tag in the page`);
+    }
+  } else port = await scan(FIRST_PORT);
+  if (port !== saved) fs.writeFileSync(FILES.local, JSON.stringify({ port }) + "\n");
   fs.writeFileSync(FILES.hub, JSON.stringify({ port, pid: process.pid, token }) + "\n", { mode: 0o600 });
 
   print(`script:  ${scriptTag(port, signal)}`);
@@ -362,18 +390,24 @@ function act(route, { id, text }, store, hub, agentName) {
   throw new Error("unknown action");
 }
 
+function alive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === "EPERM";
+  }
+}
+
 async function control(route, body) {
   const running = readJson(FILES.hub);
-  if (running) {
-    try {
-      const r = await fetch(`http://127.0.0.1:${running.port}${route}`, { method: "POST", headers: { "x-commenter-token": running.token }, body: JSON.stringify(body) });
-      const out = await r.json();
-      if (!r.ok) throw new Error(out.error);
-      return { ...out, live: true };
-    } catch (e) {
-      if (e.cause?.code !== "ECONNREFUSED") throw e;
-    }
+  if (running && alive(running.pid)) {
+    const r = await fetch(`http://127.0.0.1:${running.port}${route}`, { method: "POST", headers: { "x-commenter-token": running.token }, body: JSON.stringify(body) });
+    const out = await r.json().catch(() => ({ error: `unexpected reply from port ${running.port}` }));
+    if (!r.ok) throw new Error(out.error);
+    return { ...out, live: true };
   }
+  if (running) fs.rmSync(FILES.hub, { force: true }); // left behind by a hub that died
   return { ...act(route, body, new Store(FILES.log), null, flags.name || "Agent"), live: false };
 }
 
@@ -428,12 +462,12 @@ const commands = {
     if (room) console.log(`share:   ${shareUrl(room.room, flags.url)}   (works while \`commenter up\` is sharing)`);
   },
   async share() {
-    if (!readJson(FILES.hub)) throw new Error("`commenter up` isn't running — start it (or use `commenter up --shared`)");
+    if (!alive(readJson(FILES.hub)?.pid)) throw new Error("`commenter up` isn't running — start it (or use `commenter up --shared`)");
     const out = await control("/share", { url: flags.url });
     console.log(`sharing on · ${shareUrl(out.room, flags.url)}`);
   },
   async unshare() {
-    if (!readJson(FILES.hub)) throw new Error("`commenter up` isn't running");
+    if (!alive(readJson(FILES.hub)?.pid)) throw new Error("`commenter up` isn't running");
     await control("/unshare", {});
     console.log("sharing off — local only");
   },
@@ -444,7 +478,9 @@ const commands = {
   },
 };
 
-Promise.resolve((commands[cmd] || commands.help)()).catch((e) => {
-  console.error(`commenter: ${e.message}`);
-  process.exit(1);
-});
+Promise.resolve()
+  .then(() => (commands[cmd] || commands.help)())
+  .catch((e) => {
+    console.error(`commenter: ${e.message}`);
+    process.exit(1);
+  });
